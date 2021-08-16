@@ -97,6 +97,8 @@ void run(int sock)
                 std::cerr << "Error while sending" << std::endl;
             break;
         }
+        if (line == "quit")
+            break;
     }
 }
 

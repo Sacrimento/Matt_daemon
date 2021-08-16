@@ -8,8 +8,6 @@
 
 #include <stdio.h>
 
-//ARCHIVAGE AVANCE
-
 class Tintin_reporter
 {
     public:
@@ -21,6 +19,14 @@ class Tintin_reporter
             EXCEPTION
         };
 
+        static constexpr const char *level_str[5] = {
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "EXCEPTION"
+        };
+    
     private:
 
         std::string base_path = "";
@@ -34,13 +40,6 @@ class Tintin_reporter
         int max_lines = 0;
         int lines = 0;
 
-        const char *level_str[5] = {
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "EXCEPTION"
-        };
 
         void init_files();
         void output(const char *l, const char *msg);
@@ -53,6 +52,8 @@ class Tintin_reporter
         Tintin_reporter(std::string path, std::string name, level l);
         // Tintin_reporter(const)
         ~Tintin_reporter();
+
+        static Tintin_reporter::level level_from_str(std::string str_l);
 
         void set_level(level l) { _level = l; }
         void set_name(std::string n) { name = n; }

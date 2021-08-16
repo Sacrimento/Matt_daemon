@@ -44,12 +44,12 @@ void Tintin_reporter::init_files()
 
 void Tintin_reporter::check_file()
 {
-    if (lines + 1 == max_lines)
+    if (max_lines > 0 && lines == max_lines)
         file.close();
 
     while ((!file.is_open() || !file.good() || !std::filesystem::exists(path)) && incr < 128)
     {
-        if (std::filesystem::exists(path) && std::filesystem::is_directory(archive))
+        if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path) && std::filesystem::is_directory(archive))
             std::filesystem::rename(path, archive / path.filename());
         path = std::filesystem::path(base_path + std::string(".") + std::to_string(++incr));
         if (file.is_open())
@@ -73,13 +73,20 @@ void Tintin_reporter::output(const char *l, const char *msg)
     free(formated);
 }
 
+Tintin_reporter::level Tintin_reporter::level_from_str(std::string str_l)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        if (str_l == Tintin_reporter::level_str[i])
+            return static_cast<Tintin_reporter::level>(i);
+    }
+    return static_cast<Tintin_reporter::level>(0);
+}
+
 Tintin_reporter::~Tintin_reporter()
 {
     if (file.is_open())
         file.close();
     if (std::filesystem::exists(path) && std::filesystem::is_directory(archive))
-    {
-        std::cout << path << '>' << archive << std::endl;
         std::filesystem::rename(path, archive / path.filename());
-    }
 }

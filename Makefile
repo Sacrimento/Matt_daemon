@@ -8,10 +8,12 @@ DIR_OBJ		= 	./obj/
 
 HEAD_MD	=		tcp_server.h \
 				logger.h \
+				conf.h \
 
 SRC_MD		=	daemon.cpp \
 				tcp_server.cpp \
 				logger.cpp \
+				conf.cpp \
 
 INC_PATH 	= 	$(addprefix $(DIR_INC), $(HEAD_MD))
 
