@@ -1,4 +1,5 @@
 #include "tcp_server.h"
+#include "conf.h"
 
 TCPServer::TCPServer(int port, int max_clients, Tintin_reporter & logger) : max_clients(max_clients), logger(logger)
 {
@@ -10,7 +11,6 @@ TCPServer::TCPServer(int port, int max_clients, Tintin_reporter & logger) : max_
 
 TCPServer::~TCPServer()
 {
-    std::cout << "Graceful stop!" << std::endl;
     close(sock);
     lock_switch();
     logger.info("TCP server stopped");
@@ -88,6 +88,11 @@ bool TCPServer::handle_msg(char *msg)
         logger.info("Server shutdown requested");
         return true;
     }
+    else if (!strcmp(msg, "reload"))
+    {
+        reload_conf();
+        return true;
+    }
     return false;
 }
 
@@ -116,8 +121,51 @@ void TCPServer::handle_new_conn()
 
 void TCPServer::signal_handler(int sig)
 {
+    if (sig == SIGHUP)
+        reload_conf();
     logger.warning((std::string("Signal intercepted: ") + std::string(strsignal(sig))).c_str());
     run = false;
+}
+
+void TCPServer::reload_conf()
+{
+    std::string l_path, l_name, l_level;
+    int l_max_lines, s_max_clients;
+    std::map<std::string, std::string> conf;
+
+    logger.info("Config reload requested");
+    try {
+        conf = parse_config_file(get_config_file_path());
+        l_path = get_path_from_conf(conf, "logger/path", "/var/log/matt_daemon.log", false);
+        l_name = get_from_conf(conf, "logger/name", "matt_daemon", false);
+        l_level = get_from_conf(conf, "logger/level", "INFO", false);
+        l_max_lines = get_int_from_conf(conf, "logger/max_file_lines", 3, false);
+        s_max_clients = get_int_from_conf(conf, "server/max_clients", 3, false);
+    } catch (ParserException &e) {
+        logger.exception(e.what());
+        logger.warning("Aborting config reload");
+        return;
+    }
+
+    if (!Tintin_reporter::valid_level_str(l_level))
+    {
+        logger.exception((std::string("Config error: ") + l_level + ": invalid logger level").c_str());
+        logger.warning("Aborting config reload");
+        return;
+    }
+
+    if (!l_path.empty())
+        logger.set_path(l_path);
+    if (!l_name.empty())
+        logger.set_name(l_name);
+    if (!l_level.empty())
+        logger.set_level(Tintin_reporter::level_from_str(l_level));
+    if (l_max_lines != -1)
+        logger.set_max_lines_per_file(l_max_lines);
+    if (s_max_clients != -1)
+        max_clients = s_max_clients;
+
+    logger.info("Config reloaded !");
 }
 
 bool TCPServer::is_running()

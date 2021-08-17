@@ -59,6 +59,20 @@ void Tintin_reporter::check_file()
     }
 }
 
+void Tintin_reporter::set_path(std::filesystem::path _path)
+{
+    if (_path == std::filesystem::path(path))
+        return;
+    if (file.is_open())
+        file.close();
+    if (std::filesystem::exists(path) && std::filesystem::is_regular_file(path) && std::filesystem::is_directory(archive))
+        std::filesystem::rename(path, archive / path.filename());
+    path = _path;
+    file.open(path, std::ofstream::out | std::ofstream::app);
+    incr = 0;
+    lines = 0;
+}
+
 void Tintin_reporter::output(const char *l, const char *msg)
 {
     char *formated = NULL;
@@ -76,11 +90,19 @@ void Tintin_reporter::output(const char *l, const char *msg)
 Tintin_reporter::level Tintin_reporter::level_from_str(std::string str_l)
 {
     for (int i = 0; i < 5; i++)
-    {
         if (str_l == Tintin_reporter::level_str[i])
             return static_cast<Tintin_reporter::level>(i);
-    }
     return static_cast<Tintin_reporter::level>(0);
+}
+
+bool Tintin_reporter::valid_level_str(std::string str_l)
+{
+    if (str_l.empty())
+        return true;
+    for (int i = 0; i < 5; i++)
+        if (str_l == Tintin_reporter::level_str[i])
+            return true;
+    return false;
 }
 
 Tintin_reporter::~Tintin_reporter()

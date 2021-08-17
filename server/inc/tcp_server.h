@@ -48,6 +48,7 @@ class TCPServer
         static bool is_running();
         void serve_forever();
         void signal_handler(int sig);
+        void reload_conf();
 };
 
 extern TCPServer *g_tcp_server;

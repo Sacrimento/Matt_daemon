@@ -105,7 +105,7 @@ void run(int sock)
 int main(void)
 {
     int sock;
-    if ((sock = connect(7777)) == -1)
+    if ((sock = connect(4242)) == -1)
         return 1;
 
     setup_signals();

@@ -54,7 +54,9 @@ class Tintin_reporter
         ~Tintin_reporter();
 
         static Tintin_reporter::level level_from_str(std::string str_l);
+        static bool valid_level_str(std::string str_l);
 
+        void set_path(std::filesystem::path _path);
         void set_level(level l) { _level = l; }
         void set_name(std::string n) { name = n; }
         void set_max_lines_per_file(int l) { max_lines = l; }

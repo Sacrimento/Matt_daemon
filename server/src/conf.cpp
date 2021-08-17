@@ -3,18 +3,26 @@
 const char *get_config_file_path()
 {
     char *path = std::getenv("MD_CONFIG");
+    if (!path && !std::filesystem::is_regular_file("./matt_daemon.conf"))
+        throw ParserException("Could not find config file");
     return (path ? path : "./matt_daemon.conf");
 }
 
 bool is_number(const std::string& s)
 {
-    return !s.empty() && std::find_if(s.begin(), 
+    auto it = s.begin();
+    
+    if (*it == '-')
+        it++;
+
+    return !s.empty() && std::find_if(it, 
         s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
 }
 
 std::string get_from_conf(std::map<std::string, std::string> &conf, const char *key, const char *_default, bool use_default)
 {
     auto it = conf.find(key);
+
     if (it == conf.end())
     {
         if (use_default)
@@ -24,24 +32,32 @@ std::string get_from_conf(std::map<std::string, std::string> &conf, const char *
     return it->second;
 }
 
+std::string get_path_from_conf(std::map<std::string, std::string> &conf, const char *key, const char *_default, bool use_default)
+{
+    std::filesystem::path path = get_from_conf(conf, key, _default, use_default);
+    if (std::filesystem::is_directory(path) || !std::filesystem::is_directory(path.parent_path()))
+        throw ParserException(std::string(path) + ": invalid path");
+    return path;
+}
+
 int get_int_from_conf(std::map<std::string, std::string> &conf, const char *key, int _default, bool use_default)
 {
     int ret;
     std::string s = get_from_conf(conf, key, std::to_string(_default).c_str(), use_default);
     if (!is_number(s))
-        throw ParserException(std::string("invalid value for ") + key + std::string("(excepted int type)"));
+        throw ParserException(std::string("invalid value for ") + key + std::string(" (excepted int type)"));
     try {
         if (s.empty())
             ret = -1;
         else
             ret = std::stoi(s);
     } catch (std::invalid_argument &e) {
-        throw ParserException(std::string("invalid value for ") + key + std::string("(excepted int type)"));
+        throw ParserException(std::string("invalid value for ") + key + std::string(" (excepted int type)"));
     } catch (std::out_of_range &e) {
-        throw ParserException(std::string("invalid value for ") + key + std::string("(excepted int type)"));
+        throw ParserException(std::string("invalid value for ") + key + std::string(" (excepted int type)"));
     }
     if (ret < 0)
-        throw ParserException(std::string("invalid value for ") + key + std::string("(excepted positive int type)"));
+        throw ParserException(std::string("invalid value for ") + key + std::string(" (excepted positive int type)"));
     return ret;
 }
 
@@ -68,7 +84,7 @@ std::map<std::string, std::string> parse_config_file(const char *path)
         {
             if ((delim = line.find(']')) == std::string::npos)
                 throw ParserException(std::string("line") + std::string(":") + std::to_string(line_i) + std::string(" : invalid section name"));
-            section = line.substr(1, delim);
+            section = line.substr(1, delim - 1);
             continue;
         }
 

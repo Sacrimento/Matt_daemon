@@ -1,45 +1,23 @@
-NAME		=	matt_daemon
-FLAGS		= 	-std=c++2a -Wall -Werror -Wextra
-COMPILER	=	g++
+all: server client
 
-DIR_INC		=	./inc/
-DIR_SRC		=	./src/
-DIR_OBJ		= 	./obj/
+server:
+	@make -C server
+	@cp server/matt_daemon .
 
-HEAD_MD	=		tcp_server.h \
-				logger.h \
-				conf.h \
-
-SRC_MD		=	daemon.cpp \
-				tcp_server.cpp \
-				logger.cpp \
-				conf.cpp \
-
-INC_PATH 	= 	$(addprefix $(DIR_INC), $(HEAD_MD))
-
-OBJ 		= 	$(addprefix $(DIR_OBJ), $(SRC_MD:.cpp=.o))
-INC 		= 	$(addprefix -I, $(DIR_INC))
-
-.PHONY: all obj $(NAME) clean fclean re kill
-
-all: obj $(NAME)
-
-obj:
-	@mkdir -p $(DIR_OBJ)
-
-$(NAME): $(OBJ)
-	@$(COMPILER) -o $(NAME) $(OBJ) -lstdc++fs
-
-$(DIR_OBJ)%.o: $(DIR_SRC)%.cpp $(INC_PATH)
-	@$(COMPILER) $(FLAGS) $(INC) -c -o $@ $<
+client:
+	@make -C client
+	@cp client/Ben_AFK .
 
 clean:
-	@rm -rf $(DIR_OBJ)
+	@make -C server clean
+	@make -C client clean
 
-fclean: clean
-	@rm -f $(NAME)
+fclean:
+	@make -C server fclean
+	@make -C client fclean
 
-re: fclean all
+re:
+	@make -C server re
+	@make -C client re
 
-kill:
-	sudo kill $(pidof matt_daemon)
+.PHONY = all server client clean fclean re
