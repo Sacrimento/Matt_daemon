@@ -1,12 +1,19 @@
 #include "tcp_server.h"
-#include "conf.h"
 
 TCPServer::TCPServer(int port, int max_clients, Tintin_reporter & logger) : max_clients(max_clients), logger(logger)
 {
+
     lock_switch();
     logger.info("Creating TCP server");
+    logger.info("Generating RSA key pairs...");
+    auto[pub_key, priv_key, prd] = RSAEncryption::gen_key_pairs(0xFFFF);
+    rsa_public_key = pub_key;
+    rsa_private_key = priv_key;
+    rsa_prd = prd;
+    logger.debug((std::string("Public key: ") + RSAEncryption::get_str_key(rsa_public_key, rsa_prd)).c_str());
     create_socket(port, max_clients);
     logger.info((std::string("TCP server listening on port ") + std::to_string(port)).c_str());
+
 }
 
 TCPServer::~TCPServer()

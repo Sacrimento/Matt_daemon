@@ -17,6 +17,8 @@
 #include <string.h>
 
 #include "logger.h"
+#include "conf.h"
+#include "encryption.h"
 
 class TCPServer
 {
@@ -25,6 +27,9 @@ class TCPServer
         int sock;
         bool run = true;
         char buf[4096];
+        unsigned long rsa_private_key;
+        unsigned long rsa_public_key;
+        unsigned long rsa_prd;
         std::unordered_set<int> client_sockets;
         Tintin_reporter & logger;
 

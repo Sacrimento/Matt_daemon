@@ -1,10 +1,10 @@
-all: server client
+all: srv clt
 
-server:
-	@make -C server
+srv:
+	make -C server
 	@cp server/matt_daemon .
 
-client:
+clt:
 	@make -C client
 	@cp client/Ben_AFK .
 
@@ -17,7 +17,7 @@ fclean:
 	@make -C client fclean
 
 re:
-	@make -C server re
+	make -C server re
 	@make -C client re
 
-.PHONY = all server client clean fclean re
+.PHONY = all srv clt clean fclean re
