@@ -1,6 +1,6 @@
 #include "client.h"
 
-bool handle_err(char *buf)
+bool handle_err(const char *buf)
 {
     int code = std::stoi(buf);
     switch (code)
@@ -17,11 +17,41 @@ bool handle_err(char *buf)
     return true;
 }
 
+bool _recv(int sock, unsigned long *pub, unsigned long *prd)
+{
+    char buf[4096];
+    std::string line, part;
+    int delim = 0;
+
+    if (recv(sock, buf, sizeof(buf), 0) < 0)
+    {
+        printf("Could not receive response from server\n");
+        return false;
+    }
+
+    std::istringstream sbuf(buf);
+    std::getline(sbuf, line);
+
+    if (handle_err(line.c_str()))
+        return false;
+
+    if (pub && prd)
+    {
+        std::getline(sbuf, line);
+        delim = line.find('.');
+        part = line.substr(0, delim);
+        std::cout << part << std::endl;
+        *pub = std::stoul(part);
+        part = line.substr(delim + 1);
+        *prd = std::stoul(part);
+    }
+    return true;
+}
+
 int connect(int port)
 {
     int sock = 0;
     struct sockaddr_in addr;
-    char buf[16];
 
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -43,15 +73,6 @@ int connect(int port)
         printf("\nConnection Failed \n");
         return -1;
     }
-
-    if (recv(sock, buf, sizeof(buf), 0) < 0)
-    {
-        printf("Could not receive response from server\n");
-        return -1;
-    }
-
-    if (handle_err(buf))
-        return -1;
 
     return sock;
 }
@@ -105,8 +126,12 @@ void run(int sock)
 int main(void)
 {
     int sock;
+    unsigned long srv_rsa_pub, srv_rsa_prd;
+
     if ((sock = connect(4242)) == -1)
         return 1;
+
+    _recv(sock, &srv_rsa_pub, &srv_rsa_prd);
 
     setup_signals();
 

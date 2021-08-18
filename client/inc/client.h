@@ -2,6 +2,7 @@
 
 #include <csignal>
 #include <iostream>
+#include <sstream>
 
 #include <stdio.h>
 #include <sys/socket.h>

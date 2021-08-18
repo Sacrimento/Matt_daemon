@@ -19,6 +19,8 @@ TCPServer::TCPServer(int port, int max_clients, Tintin_reporter & logger) : max_
 TCPServer::~TCPServer()
 {
     close(sock);
+    for (auto c : clients)
+        close(c.first);
     lock_switch();
     logger.info("TCP server stopped");
 }
@@ -45,45 +47,48 @@ void TCPServer::serve_forever()
     {
         FD_ZERO(&sockets);
         FD_SET(sock, &sockets);
-        for (auto s = client_sockets.begin(); s != client_sockets.end(); s++)
-            FD_SET(*s, &sockets);
-
-        auto m = std::max_element(client_sockets.begin(), client_sockets.end());
-        max = std::max(sock, (m == client_sockets.end() ? 0 : *m));
+        max = 0;
+        for (auto c = clients.cbegin(); c != clients.cend(); c++)
+        {
+            FD_SET(c->first, &sockets);
+            max = std::max(c->first, max);
+        }
+        max = std::max(sock, max);
 
         if (select(max + 1, &sockets, NULL, NULL, NULL) < 0)
         {
-            if (errno == EINTR)
-                return;
-            logger.error("Fatal: internal server error (select) !");
+            if (errno != EINTR)
+                logger.error("Fatal: internal server error (select) !");
             return;
         }
 
-        for (auto s = client_sockets.begin(); s != client_sockets.end(); s++)
-            if (FD_ISSET(*s, &sockets))
-                if (!get_message(*s))
-                    if ((s = client_sockets.erase(s)) == client_sockets.end())
+        for (auto c = clients.begin(); c != clients.end(); c++)
+        {
+            if (FD_ISSET(c->first, &sockets))
+                if (!get_message(c->first, c->second))
+                    if ((c = clients.erase(c)) == clients.end())
                         break;
+        }
         if (FD_ISSET(sock, &sockets))
             handle_new_conn();
     }
 }
 
-int TCPServer::get_message(int client_sock)
+int TCPServer::get_message(int cl_sock, client &c)
 {
     int length;
 
     bzero(buf, sizeof(buf));
-    if ((length = recv(client_sock, buf, sizeof(buf), 0)) <= 0)
+    if ((length = recv(cl_sock, buf, sizeof(buf), 0)) <= 0)
     {
-        close(client_sock);
-        logger.info((std::string("Client ") + std::to_string(client_sock) + std::string(" disconnected!")).c_str());
+        close(cl_sock);
+        logger.info((c.name + std::string(" disconnected!")).c_str());
         return 0;
     }
     if (buf[length - 1] == '\n')
         buf[length - 1] = 0;
     if (!handle_msg(buf))
-        logger.msg(buf, client_sock);
+        logger.msg(buf, c.name);
     return 1;
 }
 
@@ -103,26 +108,31 @@ bool TCPServer::handle_msg(char *msg)
     return false;
 }
 
-void TCPServer::send_msg(int sock, int code)
+void TCPServer::send_msg(int sock, std::string msg, int code)
 {
-    auto str = std::to_string(code);
-    send(sock, str.c_str(), str.length(), 0);
+    auto str = std::to_string(code) + "\n" + msg;
+
+    if (send(sock, str.c_str(), str.length(), 0) == -1)
+        logger.exception("Could not send msg");
 }
 
 void TCPServer::handle_new_conn()
 {
-    int client_sock = accept(sock, NULL, NULL);
-    if (client_sockets.size() == (unsigned int)max_clients)
+    client c = {0, 0, ""};
+
+    int cl_sock = accept(sock, NULL, NULL);
+    c.name = std::string("Guest") + std::to_string(cl_sock);
+    if (clients.size() == (unsigned int)max_clients)
     {
         logger.warning("Deny new connection, server too busy");
-        send_msg(client_sock, codes::TOO_BUSY);
-        close(client_sock);
+        send_msg(cl_sock, "", codes::TOO_BUSY);
+        close(cl_sock);
     }
     else
     {
-        logger.info((std::string("New connection ! Client socket : ") + std::to_string(client_sock)).c_str());
-        send_msg(client_sock, codes::OK);
-        client_sockets.insert(client_sock);
+        logger.info((std::string("New connection ! Client socket : ") + std::to_string(cl_sock)).c_str());
+        send_msg(cl_sock, std::to_string(rsa_public_key) + "." + std::to_string(rsa_prd), codes::OK);
+        clients.insert(std::pair<int, client>(cl_sock, c));
     }
 }
 

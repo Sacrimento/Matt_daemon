@@ -66,7 +66,7 @@ class Tintin_reporter
 
         void debug(const char *msg) { log(level::DEBUG, msg); }
         void info(const char *msg) { log(level::INFO, msg); }
-        void msg(const char *msg, int sock) { log((std::string("USER (") + std::to_string(sock) + std::string(")")).c_str(), msg); }
+        void msg(const char *msg, std::string user) { log((std::string("USER (") + user + std::string(")")).c_str(), msg); }
         void warning(const char *msg) { log(level::WARNING, msg); }
         void error(const char *msg) { log(level::ERROR, msg); }
         void exception(const char *msg) { log(level::EXCEPTION, msg); }

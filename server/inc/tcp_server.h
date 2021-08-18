@@ -5,7 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <csignal>
-#include <unordered_set>
+#include <map>
 #include <algorithm>
 
 #include <sys/socket.h>
@@ -23,6 +23,12 @@
 class TCPServer
 {
     private:
+        struct client {
+            unsigned long rsa_public_key;
+            unsigned long rsa_prd;
+            std::string name;
+        };
+        
         int max_clients;
         int sock;
         bool run = true;
@@ -30,13 +36,13 @@ class TCPServer
         unsigned long rsa_private_key;
         unsigned long rsa_public_key;
         unsigned long rsa_prd;
-        std::unordered_set<int> client_sockets;
+        std::map<int, client> clients;
         Tintin_reporter & logger;
 
         void lock_switch();
         void create_socket(int port, int max_clients);
-        int get_message(int client_sock);
-        void send_msg(int sock, int code);
+        int get_message(int cl_sock, client &c);
+        void send_msg(int sock, std::string msg, int code);
         void handle_new_conn();
         bool handle_msg(char *buf);
 
