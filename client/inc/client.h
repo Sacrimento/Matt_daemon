@@ -11,4 +11,6 @@
 #include <string.h>
 #include <errno.h>
 
+#include "encryption.h"
+
 bool g_run = true;

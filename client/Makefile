@@ -28,13 +28,13 @@ obj:
 	@mkdir -p $(DIR_OBJ)
 
 $(NAME): $(LIB_RSA) $(OBJ)
-	@$(COMPILER) -o $(NAME) $(OBJ) -lstdc++fs
+	@$(COMPILER) -o $(NAME) $(OBJ) $(LIB_RSA) -lstdc++fs
 
 $(LIB_RSA):
 	@make -C $(DIR_LIB)
 
 $(DIR_OBJ)%.o: $(DIR_SRC)%.cpp $(INC_PATH)
-	@$(COMPILER) $(FLAGS) $(INC) -c -o $@ $<
+	@$(COMPILER) $(FLAGS) $(INC) -I$(LIB_INC) -c -o $@ $<
 
 clean:
 	@make -C $(DIR_LIB) clean

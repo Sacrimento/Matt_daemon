@@ -62,55 +62,70 @@ void TCPServer::serve_forever()
             return;
         }
 
-        for (auto c = clients.begin(); c != clients.end(); c++)
+        for (auto &c: clients)
         {
-            if (FD_ISSET(c->first, &sockets))
-                if (!get_message(c->first, c->second))
-                    if ((c = clients.erase(c)) == clients.end())
-                        break;
+            if (FD_ISSET(c.first, &sockets))
+                if (!get_message(c.first, c.second))
+                    break;
         }
         if (FD_ISSET(sock, &sockets))
             handle_new_conn();
     }
 }
 
-int TCPServer::get_message(int cl_sock, client &c)
+bool TCPServer::get_message(int cl_sock, client &c)
 {
     int length;
+    std::string s;
 
     bzero(buf, sizeof(buf));
     if ((length = recv(cl_sock, buf, sizeof(buf), 0)) <= 0)
-    {
-        close(cl_sock);
-        logger.info((c.name + std::string(" disconnected!")).c_str());
-        return 0;
-    }
+        return disconnect_client(cl_sock, "");
     if (buf[length - 1] == '\n')
         buf[length - 1] = 0;
-    if (!handle_msg(buf))
-        logger.msg(buf, c.name);
-    return 1;
+    s = buf;
+    if (c.rsa_public_key && c.rsa_prd)
+        s = RSAEncryption::decrypt_msg(s, rsa_private_key, rsa_prd);
+    return handle_msg(std::istringstream(s), cl_sock, c);
 }
 
-bool TCPServer::handle_msg(char *msg)
+bool TCPServer::handle_msg(std::istringstream s, int cl_sock, client &c)
 {
-    if (!strcmp(msg, "quit"))
+    std::string line, part;
+
+    std::getline(s, line);
+
+    if (!c.rsa_public_key && !c.rsa_prd && line != "rsa")
+        return disconnect_client(cl_sock, "Secure connection was not established");
+
+    if (line == "quit")
     {
         run = false;
         logger.info("Server shutdown requested");
-        return true;
     }
-    else if (!strcmp(msg, "reload"))
-    {
+    else if (line == "reload")
         reload_conf();
-        return true;
+    else if (line == "rsa")
+    {
+        std::getline(s, line);
+        if (!RSAEncryption::store_to_int(line, &c.rsa_public_key, &c.rsa_prd))
+            return disconnect_client(cl_sock, "Invalid RSA key exchange");
+        logger.debug((std::string("Received ") + c.name + " public key: " + RSAEncryption::get_str_key(c.rsa_public_key, c.rsa_prd)).c_str());
     }
-    return false;
+    else if (line == "auth")
+    {
+    }
+    else
+        logger.msg(line.c_str(), c.name);
+    return true;
 }
 
-void TCPServer::send_msg(int sock, std::string msg, int code)
+void TCPServer::send_msg(int sock, std::string msg, int code, unsigned long pub_key, unsigned long prd)
 {
     auto str = std::to_string(code) + "\n" + msg;
+
+    if (pub_key && prd)
+        str = RSAEncryption::encrypt_msg(str, pub_key, prd);
 
     if (send(sock, str.c_str(), str.length(), 0) == -1)
         logger.exception("Could not send msg");
@@ -125,15 +140,28 @@ void TCPServer::handle_new_conn()
     if (clients.size() == (unsigned int)max_clients)
     {
         logger.warning("Deny new connection, server too busy");
-        send_msg(cl_sock, "", codes::TOO_BUSY);
+        send_msg(cl_sock, "", codes::TOO_BUSY, 0, 0);
         close(cl_sock);
     }
     else
     {
         logger.info((std::string("New connection ! Client socket : ") + std::to_string(cl_sock)).c_str());
-        send_msg(cl_sock, std::to_string(rsa_public_key) + "." + std::to_string(rsa_prd), codes::OK);
+        send_msg(cl_sock, std::to_string(rsa_public_key) + ":" + std::to_string(rsa_prd), codes::OK, 0, 0);
+        logger.debug("Sent server public key");
         clients.insert(std::pair<int, client>(cl_sock, c));
     }
+}
+
+bool TCPServer::disconnect_client(int cl_sock, std::string reason)
+{
+    std::string msg = "Client " + clients[cl_sock].name + " disconnected. " + reason;
+    logger.info(msg.c_str());
+    close(cl_sock);
+
+    for (auto c = clients.begin(); c != clients.end(); c++)
+        if (c->first == cl_sock)
+            return !(clients.erase(c) == clients.end());
+    return true;
 }
 
 void TCPServer::signal_handler(int sig)

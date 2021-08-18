@@ -38,7 +38,7 @@ bool _recv(int sock, unsigned long *pub, unsigned long *prd)
     if (pub && prd)
     {
         std::getline(sbuf, line);
-        delim = line.find('.');
+        delim = line.find(':');
         part = line.substr(0, delim);
         std::cout << part << std::endl;
         *pub = std::stoul(part);
@@ -46,6 +46,13 @@ bool _recv(int sock, unsigned long *pub, unsigned long *prd)
         *prd = std::stoul(part);
     }
     return true;
+}
+
+bool _send(int sock, std::string msg, unsigned long srv_pub, unsigned long srv_prd)
+{
+    if (srv_pub && srv_prd)
+        msg = RSAEncryption::encrypt_msg(msg, srv_pub, srv_prd);
+    return !(send(sock, msg.c_str(), msg.length(), 0) == -1);
 }
 
 int connect(int port)
@@ -89,7 +96,7 @@ void setup_signals()
     signal(SIGINT, sig_handler);
 }
 
-void run(int sock)
+void run(int sock, unsigned long srv_pub, unsigned long srv_prd)
 {
     std::string line;
     char b;
@@ -110,12 +117,12 @@ void run(int sock)
             std::cerr << std::endl << "Error: can not send more than 4095 bytes" << std::endl;
             continue;
         }
-        if (send(sock, line.c_str(), line.length(), 0) == -1)
+        if (!_send(sock, line, srv_pub, srv_prd))
         {
             if (errno == EBADF)
                 std::cerr << "TCP Server unreachable" << std::endl;
             else
-                std::cerr << "Error while sending" << std::endl;
+                std::cerr << errno << std::endl;
             break;
         }
         if (line == "quit")
@@ -127,15 +134,14 @@ int main(void)
 {
     int sock;
     unsigned long srv_rsa_pub, srv_rsa_prd;
+    auto [rsa_pub, rsa_priv, rsa_prd] = RSAEncryption::gen_key_pairs(0xFFFF);
 
     if ((sock = connect(4242)) == -1)
         return 1;
-
-    _recv(sock, &srv_rsa_pub, &srv_rsa_prd);
-
     setup_signals();
 
-    run(sock);
+    if (_recv(sock, &srv_rsa_pub, &srv_rsa_prd) && _send(sock, std::string("rsa\n") + std::to_string(rsa_pub) + ":" + std::to_string(rsa_prd), 0, 0))
+        run(sock, srv_rsa_pub, srv_rsa_prd);
 
     close(sock);
 

@@ -4,8 +4,31 @@ namespace RSAEncryption {
     std::string get_str_key(unsigned long key, unsigned long prd)
     {
         std::stringstream stream;
-        stream << std::hex << key << '.' << std::hex << prd;
+        stream << std::hex << key << ':' << std::hex << prd;
         return stream.str();
+    }
+
+    bool store_to_int(std::string buf, unsigned long *key, unsigned long *prd)
+    {
+        size_t delim;
+        std::string part;
+
+        if (buf.empty())
+            return false;
+
+        delim = buf.find(":");
+        if (delim == std::string::npos)
+            return false;
+        
+        part = buf.substr(0, delim);
+        try {
+            *key = std::stoul(part);
+            part = buf.substr(delim + 1);
+            *prd = std::stoul(part);
+        }
+        catch(const std::invalid_argument& e) { return false; }
+        
+        return true;
     }
 
     std::vector<unsigned int> erathostenes(int n)
@@ -78,6 +101,28 @@ namespace RSAEncryption {
         return std::make_tuple(e, d, q);
     }
 
+    std::string encrypt_msg(std::string msg, unsigned long public_key, unsigned long product)
+    {
+        std::stringstream s;
+        std::string encrypted;
+
+        for (char &c : msg)
+            s << std::hex << RSAEncryption::encrypt(c, public_key, product) << ":";
+        encrypted = s.str();
+        return encrypted.substr(0, encrypted.size() - 1);
+    }
+
+    std::string decrypt_msg(std::string msg, unsigned long private_key, unsigned long product)
+    {
+        std::string slice, decrypted = "";
+        std::stringstream s(msg);
+
+        while (std::getline(s, slice, ':'))
+            decrypted.push_back(RSAEncryption::decrypt(std::stoul(slice, nullptr, 16), private_key, product));
+
+        return decrypted;
+    }
+
     unsigned long encrypt(int msg, uint128_t public_key, uint128_t product)
     {
         return pow_mod(msg, public_key, product);
@@ -96,10 +141,10 @@ namespace RSAEncryption {
 
 //     std::cout << pub_key << " " << priv_key << " " << prd << std::endl;
 
-//     unsigned long encrypted = RSAEncryption::encrypt(6666, pub_key, prd);
+//     std::string encrypted = RSAEncryption::encrypt_msg("Coucou les amis!", pub_key, prd);
 //     std::cout << encrypted << std::endl;
 
-//     encrypted = RSAEncryption::decrypt(encrypted, priv_key, prd);
+//     encrypted = RSAEncryption::decrypt_msg(encrypted, priv_key, prd);
 //     std::cout << encrypted << std::endl;
 
 //     return 0;

@@ -41,10 +41,11 @@ class TCPServer
 
         void lock_switch();
         void create_socket(int port, int max_clients);
-        int get_message(int cl_sock, client &c);
-        void send_msg(int sock, std::string msg, int code);
+        bool get_message(int cl_sock, client &c);
+        void send_msg(int sock, std::string msg, int code, unsigned long key, unsigned long prd);
         void handle_new_conn();
-        bool handle_msg(char *buf);
+        bool handle_msg(std::istringstream msg, int cl_sock, client &c);
+        bool disconnect_client(int cl_sock, std::string reason);
 
     public:
         enum codes
