@@ -32,10 +32,12 @@ std::string get_from_conf(std::map<std::string, std::string> &conf, const char *
     return it->second;
 }
 
-std::string get_path_from_conf(std::map<std::string, std::string> &conf, const char *key, const char *_default, bool use_default)
+std::string get_path_from_conf(std::map<std::string, std::string> &conf, const char *key, const char *_default, bool must_exist, bool use_default)
 {
     std::filesystem::path path = get_from_conf(conf, key, _default, use_default);
     if (std::filesystem::is_directory(path) || !std::filesystem::is_directory(path.parent_path()))
+        throw ParserException(std::string(path) + ": invalid path");
+    if (must_exist && !std::filesystem::is_regular_file(path))
         throw ParserException(std::string(path) + ": invalid path");
     return path;
 }

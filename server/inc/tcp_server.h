@@ -37,9 +37,13 @@ class TCPServer
         unsigned long rsa_public_key;
         unsigned long rsa_prd;
         std::map<int, client> clients;
+        std::map<std::string, std::string> auth;
         Tintin_reporter & logger;
 
         void lock_switch();
+        std::pair<std::string, std::string> two_args(std::string arg);
+        void parse_auth_file(std::string auth_file);
+        bool auth_client(int cl_sock, client &c, std::string creds);
         void create_socket(int port, int max_clients);
         bool get_message(int cl_sock, client &c);
         void send_msg(int sock, std::string msg, int code, unsigned long key, unsigned long prd);
@@ -52,10 +56,11 @@ class TCPServer
         {
             OK,
             TOO_BUSY,
-            AUTH_FAIL
+            AUTH_FAIL,
+            AUTH_ALREADY
         };
 
-        TCPServer(int port, int max_clients, Tintin_reporter & logger);
+        TCPServer(int port, int max_clients, std::string auth_path, Tintin_reporter & logger);
         ~TCPServer();
         static bool is_running();
         void serve_forever();

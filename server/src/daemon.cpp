@@ -49,23 +49,25 @@ void setup_signals()
 
 int main(void)
 {
+    std::cout << std::hex << std::hash<std::string>{}("admin") << std::endl;
     if (getuid() != 0)
         fail("Fatal: you must be root to run the daemon");
     if (TCPServer::is_running())
         fail("Fatal: can not start daemon, an instance is already running");
 
-    std::string l_path, l_name, l_level;
+    std::string l_path, l_name, l_level, s_auth_path;
     int l_max_lines, s_port, s_max_clients;
     std::map<std::string, std::string> conf;
 
     try {
         conf = parse_config_file(get_config_file_path());
-        l_path = get_path_from_conf(conf, "logger/path", "/var/log/matt_daemon.log", true);
+        l_path = get_path_from_conf(conf, "logger/path", "/var/log/matt_daemon.log", false, true);
         l_name = get_from_conf(conf, "logger/name", "matt_daemon", true);
         l_level = get_from_conf(conf, "logger/level", "INFO", true);
         l_max_lines = get_int_from_conf(conf, "logger/max_file_lines", 3, true);
         s_port = get_int_from_conf(conf, "server/port", 4242, true);
         s_max_clients = get_int_from_conf(conf, "server/max_clients", 3, true);
+        s_auth_path = get_path_from_conf(conf, "server/auth_file", "./matt_daemon_secret", true, true);
     } catch (ParserException &e) {
         fail(std::string("Config error: ") + e.what());
     }
@@ -78,7 +80,7 @@ int main(void)
     logger.set_max_lines_per_file(l_max_lines);
 
     logger.info("Daemon started");
-    auto s = TCPServer(s_port, s_max_clients, logger);
+    auto s = TCPServer(s_port, s_max_clients, s_auth_path, logger);
 
     g_tcp_server = &s;
     setup_signals();

@@ -1,9 +1,9 @@
 #include "tcp_server.h"
 
-TCPServer::TCPServer(int port, int max_clients, Tintin_reporter & logger) : max_clients(max_clients), logger(logger)
+TCPServer::TCPServer(int port, int max_clients, std::string auth_path, Tintin_reporter & logger) : max_clients(max_clients), logger(logger)
 {
-
     lock_switch();
+    parse_auth_file(auth_path);
     logger.info("Creating TCP server");
     logger.info("Generating RSA key pairs...");
     auto[pub_key, priv_key, prd] = RSAEncryption::gen_key_pairs(0xFFFF);
@@ -114,6 +114,8 @@ bool TCPServer::handle_msg(std::istringstream s, int cl_sock, client &c)
     }
     else if (line == "auth")
     {
+        std::getline(s, line);
+        return auth_client(cl_sock, c, line);
     }
     else
         logger.msg(line.c_str(), c.name);
@@ -152,6 +154,32 @@ void TCPServer::handle_new_conn()
     }
 }
 
+bool TCPServer::auth_client(int cl_sock, client &c, std::string creds)
+{
+    std::pair<std::string, std::string> p = two_args(creds);
+
+    if (p.first.empty() || p.second.empty())
+    {
+        send_msg(cl_sock, "", codes::AUTH_FAIL, c.rsa_public_key, c.rsa_prd);
+        return disconnect_client(cl_sock, "Invalid authentification arguments");
+    }
+
+    if (auth.find(p.first) == auth.end() || auth[p.first] != p.second)
+    {
+        send_msg(cl_sock, "", codes::AUTH_FAIL, c.rsa_public_key, c.rsa_prd);
+        return disconnect_client(cl_sock, "Invalid login/password");
+    }
+
+    for (auto &cl : clients)
+        if (cl.second.name == p.first)
+        {
+            send_msg(cl_sock, "", codes::AUTH_ALREADY, c.rsa_public_key, c.rsa_prd);
+            return disconnect_client(cl_sock, p.first + " is already logged in");
+        }
+    c.name = p.first;
+    return true;
+}
+
 bool TCPServer::disconnect_client(int cl_sock, std::string reason)
 {
     std::string msg = "Client " + clients[cl_sock].name + " disconnected. " + reason;
@@ -174,18 +202,19 @@ void TCPServer::signal_handler(int sig)
 
 void TCPServer::reload_conf()
 {
-    std::string l_path, l_name, l_level;
+    std::string l_path, l_name, l_level, s_auth_path;
     int l_max_lines, s_max_clients;
     std::map<std::string, std::string> conf;
 
     logger.info("Config reload requested");
     try {
         conf = parse_config_file(get_config_file_path());
-        l_path = get_path_from_conf(conf, "logger/path", "/var/log/matt_daemon.log", false);
+        l_path = get_path_from_conf(conf, "logger/path", "/var/log/matt_daemon.log", false, false);
         l_name = get_from_conf(conf, "logger/name", "matt_daemon", false);
         l_level = get_from_conf(conf, "logger/level", "INFO", false);
         l_max_lines = get_int_from_conf(conf, "logger/max_file_lines", 3, false);
         s_max_clients = get_int_from_conf(conf, "server/max_clients", 3, false);
+        s_auth_path = get_path_from_conf(conf, "server/auth_file", "./matt_daemon_secret", true, false);
     } catch (ParserException &e) {
         logger.exception(e.what());
         logger.warning("Aborting config reload");
@@ -209,8 +238,50 @@ void TCPServer::reload_conf()
         logger.set_max_lines_per_file(l_max_lines);
     if (s_max_clients != -1)
         max_clients = s_max_clients;
+    if (!s_auth_path.empty())
+        parse_auth_file(s_auth_path);
 
     logger.info("Config reloaded !");
+}
+
+void TCPServer::parse_auth_file(std::string auth_path)
+{
+    std::ifstream file(auth_path);
+    std::string line;
+    std::pair<std::string, std::string> p;
+
+    if (!file.is_open() || !file.good())
+        return;
+
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+            continue;
+        p = two_args(line);
+        if (p.first.empty() || p.second.empty())
+        {
+            logger.error((std::string("Auth file error: \"") + line + "\". Ignoring line").c_str());
+            continue;
+        }
+        if (auth.find(p.first) != auth.end())
+        {
+            logger.error((std::string("Auth file error: ") + p.first + "\" already exists. Ignoring line").c_str());
+            continue;
+        }
+        auth.insert(p);
+    }
+
+    file.close();
+}
+
+std::pair<std::string, std::string> TCPServer::two_args(std::string arg)
+{
+    size_t delim;
+
+    if ((delim = arg.find(':')) == std::string::npos)
+        return std::pair<std::string, std::string>("", "");
+    
+    return std::pair<std::string, std::string>(arg.substr(0, delim), arg.substr(delim + 1));
 }
 
 bool TCPServer::is_running()
